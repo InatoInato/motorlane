@@ -1,0 +1,5 @@
+# Local screenshots from browser QA
+/artifacts/
+/test-results/
+/playwright-report/
+/playwright/.cache/

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "playwright test --config=playwright.unit.config.ts",
+    "test:e2e": "docker compose -f ../api/compose.yaml --profile test up -d --wait db-test && playwright test"
   },
   "dependencies": {
     "next": "16.4.6",
@@ -15,6 +17,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

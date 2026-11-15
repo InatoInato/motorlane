@@ -14,7 +14,8 @@ export function HealthStatus() {
 
     async function checkHealth() {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+        const baseUrl =
+          process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
         const response = await fetch(`${baseUrl}/health`, {
           signal: controller.signal,
           cache: "no-store",
@@ -47,10 +48,14 @@ export function HealthStatus() {
   }, []);
 
   const messages: Record<Status, string> = {
-    checking: "Checking the connection…",
-    connected: "API connected. Both applications are running.",
-    unavailable: "The API is unavailable. Start it and reload this page.",
+    checking: "Checking marketplace connection…",
+    connected: "Marketplace connected",
+    unavailable: "Marketplace connection unavailable",
   };
 
-  return <p role="status" data-status={status}>{messages[status]}</p>;
+  return (
+    <p role="status" data-status={status}>
+      {messages[status]}
+    </p>
+  );
 }

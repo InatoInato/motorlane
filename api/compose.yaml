@@ -1,4 +1,4 @@
-name: motorlane
+name: motorlane-api
 
 services:
   db:

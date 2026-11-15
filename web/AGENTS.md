@@ -48,5 +48,20 @@ Start from the user's task and the available API contract.
   Check focus, overflow, loading and failure states, not just the happy screenshot.
 - Report browser/visual checks that could not run. A passing build is not a UX review.
 
+# Frontend Engineering Rules
+
+Act as a senior UI/UX designer and frontend engineer.
+
+1. Prioritize visual quality, usability, and accessibility.
+2. Study the existing UI and design references before coding.
+3. Use consistent typography, spacing, colors, and components.
+4. Avoid generic AI-looking dashboards, random gradients, and excessive cards.
+5. Make every page responsive and mobile-friendly.
+6. Include proper loading, empty, error, and hover states.
+7. Keep React components simple and reusable. Avoid overengineering.
+8. Run the app in a browser, inspect screenshots, and fix visual issues.
+9. Test important user interactions, not just compilation.
+10. Do not consider UI complete until visual and functional checks pass.
+
 Checks: npm run lint && npm run typecheck && npm run build
 Start: npm run dev

@@ -1,17 +1,45 @@
-import { HealthStatus } from "./health-status";
+import { getCars, PAGE_SIZE } from "./cars";
+import { Marketplace } from "./marketplace";
 
-export default function Home() {
+type Params = Record<string, string | string[] | undefined>;
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<Params>;
+}) {
+  const params = await searchParams;
+  const value = (key: string) =>
+    typeof params[key] === "string" ? (params[key] as string) : "";
+  const pageNumber = Number(value("page"));
+  const page =
+    Number.isSafeInteger(pageNumber) && pageNumber > 0 && pageNumber <= 100000
+      ? pageNumber
+      : 1;
+  let result: Awaited<ReturnType<typeof getCars>> = {
+    cars: [],
+    hasMore: false,
+  };
+  let error = "";
+  try {
+    result = await getCars((page - 1) * PAGE_SIZE);
+  } catch (cause) {
+    error =
+      cause instanceof Error
+        ? cause.message
+        : "The marketplace is unavailable. Please try again.";
+  }
   return (
-    <main>
-      <p className="eyebrow">MOTORLANE / PROJECT FOUNDATION</p>
-      <h1>Your next car starts here.</h1>
-      <p className="intro">
-        A used-car marketplace in development. Listings and seller tools are next.
-      </p>
-      <section aria-labelledby="connection-heading">
-        <h2 id="connection-heading">Service connection</h2>
-        <HealthStatus />
-      </section>
-    </main>
+    <Marketplace
+      {...result}
+      error={error}
+      page={page}
+      filters={{
+        q: value("q"),
+        make: value("make"),
+        budget: value("budget"),
+        sort: value("sort") || "latest",
+      }}
+    />
   );
 }
