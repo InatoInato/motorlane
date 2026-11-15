@@ -104,3 +104,17 @@ a second business backend. Authentication remains future work.
 
 Next.js requires a server runtime for SSR; the earlier Vite/static-site deployment
 plan must be revised when we reach deployment. There is no deployment in this slice.
+
+## Authentication
+
+Run `cd api && uv run alembic upgrade head` before starting the updated API.
+Register and sign in from the account form. Usernames use 3–80 letters, digits or
+underscores; passwords require 12–128 characters. API routes are
+`POST /auth/register`, `POST /auth/login`, `GET /auth/me`, and `POST /auth/logout`.
+Send the returned token as `Authorization: Bearer <token>` for listing writes.
+Passwords use salted scrypt; database sessions store token hashes and expire in
+24 hours. Sign-out revokes the current token. The browser holds its token only
+in memory, so refreshing signs you out. Use HTTPS for deployed API traffic.
+Only the creator can edit/delete a listing. Existing unowned listings remain
+readable but cannot be edited through the API. Account recovery, email verification
+and login rate limiting are not implemented.

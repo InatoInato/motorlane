@@ -13,11 +13,12 @@ import {
 
 type Props = {
   car?: Car;
+  userId: number | null;
   onClose: () => void;
   onSaved: (message: string) => void;
 };
 
-export function ListingDialog({ car, onClose, onSaved }: Props) {
+export function ListingDialog({ car, userId, onClose, onSaved }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [mode, setMode] = useState<"view" | "edit" | "create">(
     car ? "view" : "create",
@@ -203,7 +204,7 @@ export function ListingDialog({ car, onClose, onSaved }: Props) {
                 Vehicle photos and seller contact details aren’t available yet.
                 This local marketplace lets you manage listings.
               </p>
-              {!error && !confirmDelete && (
+              {!error && !confirmDelete && userId !== null && details?.owner_id === userId && (
                 <div className="dialog-actions">
                   <button
                     className="button primary"

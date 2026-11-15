@@ -61,6 +61,15 @@ async def client(session: AsyncSession) -> AsyncIterator[AsyncClient]:
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            await client.post(
+                "/auth/register",
+                json={"username": "testseller", "password": "test-password-123"},
+            )
+            login = await client.post(
+                "/auth/login",
+                json={"username": "testseller", "password": "test-password-123"},
+            )
+            client.headers["Authorization"] = "Bearer " + login.json()["token"]
             yield client
     finally:
         app.dependency_overrides.clear()

@@ -21,6 +21,7 @@ class CarOutput(CarInput):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    owner_id: int | None = None
 
 
 class ErrorResponse(BaseModel):
