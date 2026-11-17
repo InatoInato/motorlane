@@ -1346,3 +1346,10 @@ h2 {
   .sign-in-button, .account-control summary { font-size: 12px; }
   .auth-dialog { padding: 22px; }
 }
+.favorite-button { color: var(--blue); min-height: 44px; }
+.favorite-button span { font-size: 22px; vertical-align: middle; }
+.favorite-control { margin-top: 8px; }
+.favorites-page { padding-block: 32px; }
+.favorites-page h1 { font-size: 36px; margin-block: 28px; }
+.favorites-card { padding: 24px; display: grid; gap: 16px; }
+@media (max-width: 600px) { .header-actions { flex-wrap: wrap; justify-content: flex-end; } }

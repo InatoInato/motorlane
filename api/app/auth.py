@@ -21,7 +21,7 @@ bearer = HTTPBearer(auto_error=False)
 
 class Credentials(BaseModel):
     username: str = Field(pattern=r"^[a-zA-Z0-9_]{3,80}$")
-    password: str = Field(min_length=12, max_length=128)
+    password: str = Field(min_length=8, max_length=128)
 
 
 def password_hash(password: str, salt: str) -> str:

@@ -360,7 +360,7 @@ test("registers in a modal, reports errors and signs out", async ({ page }, test
   await signIn.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toHaveAccessibleName("Sign in");
-  await expect(dialog.getByText("12–128 characters.", { exact: true })).toHaveCount(0);
+  await expect(dialog.getByText("8–128 characters.", { exact: true })).toHaveCount(0);
   await dialog.getByLabel("Username", { exact: true }).fill(username);
   await dialog.getByLabel("Password", { exact: true }).fill("wrong-password-123");
   await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -368,11 +368,16 @@ test("registers in a modal, reports errors and signs out", async ({ page }, test
   await expect(dialog.getByLabel("Username", { exact: true })).toHaveValue(username);
   await dialog.getByRole("button", { name: "Create account", exact: true }).click();
   await expect(dialog).toHaveAccessibleName("Create account");
-  await expect(dialog.getByText("12–128 characters.", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("8–128 characters.", { exact: true })).toBeVisible();
   await expect(dialog.getByLabel("Password", { exact: true })).toHaveAttribute("autocomplete", "new-password");
   await dialog.getByLabel("Password", { exact: true }).fill("test-password-123");
   await dialog.getByRole("button", { name: "Create account", exact: true }).click();
   await expect(dialog.getByRole("alert")).toContainText("already taken");
+  const password = dialog.getByLabel("Password", { exact: true });
+  await password.fill("1234567");
+  expect(await password.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+  await password.fill("12345678");
+  expect(await password.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
   const newUser = `new_${randomUUID().slice(0, 8)}`;
   await dialog.getByLabel("Username", { exact: true }).fill(newUser);
   await dialog.getByRole("button", { name: "Show password" }).click();
@@ -444,4 +449,50 @@ test("preserves auth input on network and server errors and prevents duplicate s
   await expect(dialog.getByRole("alert")).toContainText("reach your account");
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
+});
+
+test("favorites prompt sign-in, sync cards and details, and support a private favorites page", async ({ page, request }, testInfo) => {
+  const car = await createCar(request);
+  await page.goto("/");
+  const card = page.locator("#listings .car-card");
+  await card.getByRole("button", { name: "Save to favorites", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveAccessibleName("Sign in");
+  await dialog.getByLabel("Username", { exact: true }).fill(username);
+  await dialog.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(card.getByRole("button", { name: "Remove from favorites" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: `View BMW ${car.model}` }).click();
+  await dialog.getByRole("button", { name: "Remove from favorites" }).click();
+  await expect(dialog.getByRole("button", { name: "Save to favorites" })).toHaveAttribute("aria-pressed", "false");
+  await dialog.getByRole("button", { name: "Save to favorites" }).click();
+  await expect(dialog.getByRole("button", { name: "Remove from favorites" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  let releaseFavorites!: () => void;
+  const heldFavorites = new Promise<void>(resolve => { releaseFavorites = resolve; });
+  await page.route(`${API}/favorites?*`, async route => {
+    await heldFavorites;
+    await route.continue();
+  });
+  await page.getByRole("link", { name: "My favorites" }).click();
+  try {
+    await expect(page.getByRole("status")).toHaveText("Loading favorites…");
+  } finally { releaseFavorites(); }
+  await expect(page.getByRole("heading", { name: "My favorites" })).toBeVisible();
+  await expect(page.getByRole("button", { name: `BMW ${car.model}` })).toBeVisible();
+  await page.unroute(`${API}/favorites?*`);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("favorites.png"), fullPage: true });
+  await page.getByRole("button", { name: "Remove from favorites" }).click();
+  await expect(page.getByRole("heading", { name: "No favorites on this page." })).toBeVisible();
+  await page.route(`${API}/favorites?*`, route => route.fulfill({ status: 500, json: {} }));
+  await expect(page.getByRole("button", { name: "Next", exact: true })).toBeDisabled();
+  await page.getByRole("link", { name: "Browse cars", exact: true }).first().click();
+  await page.getByRole("link", { name: "My favorites" }).click();
+  await expect(page.locator("main").getByRole("alert")).toContainText("Something went wrong");
+  await page.unroute(`${API}/favorites?*`);
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("heading", { name: "No favorites on this page." })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Sign in to see your saved cars.")).toBeVisible();
 });

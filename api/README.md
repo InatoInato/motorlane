@@ -89,3 +89,15 @@ docker compose --profile test down
 
 `docker compose --profile test down -v` also deletes the development database
 volume. Use it only when you want a fresh database.
+
+## Favorites
+
+After upgrading migrations (`uv run alembic upgrade head`), authenticated users
+can `PUT /favorites/{car_id}` to save a car and `DELETE /favorites/{car_id}` to
+remove it. Both return 204, including repeated requests. Saving a missing car
+returns 404; removing a missing/deleted favorite returns 204.
+`GET /favorites?limit=20&offset=0` returns only the caller's saved cars, newest
+first with car ID as a stable tie breaker; limit is 1–100. `GET /favorites/{car_id}`
+returns `{"saved": true|false}` for the caller. User identity always comes from
+the bearer session, never from request input. The composite primary key enforces
+one favorite per user/car. Deleting a car cascades to all associated favorites.

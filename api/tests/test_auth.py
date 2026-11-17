@@ -23,3 +23,11 @@ async def test_ownership(client):
     assert (await client.delete(f"/cars/{car['id']}")).status_code == 403
     client.headers.clear()
     assert (await client.get(f"/cars/{car['id']}")).status_code == 200
+
+
+async def test_password_minimum_length(client):
+    credentials = {"username": "eightchars", "password": "1234567"}
+    assert (await client.post("/auth/register", json=credentials)).status_code == 422
+    credentials["password"] = "12345678"
+    assert (await client.post("/auth/register", json=credentials)).status_code == 201
+    assert (await client.post("/auth/login", json=credentials)).status_code == 200

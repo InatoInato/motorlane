@@ -1,6 +1,8 @@
 "use client";
 
-import { AccountControl, AuthDialog, type Account } from "./auth";
+import { AccountControl, AuthDialog } from "./auth";
+import { useSession } from "./session";
+import { FavoriteButton } from "./favorite-button";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -118,6 +120,7 @@ function CarCard({
               <Arrow />
             </button>
           )}
+          {!sample && <FavoriteButton carId={car.id} />}
           {sample && <span className="sample-caption">For inspiration</span>}
         </div>
       </div>
@@ -127,7 +130,7 @@ function CarCard({
 
 export function Marketplace({ cars, hasMore, error, page, filters }: Props) {
   const router = useRouter();
-  const [account, setAccount] = useState<Account | null>(null);
+  const { account, setAccount } = useSession();
   const [authOpen, setAuthOpen] = useState(false);
   const resumeSelling = useRef(false);
   const signInButton = useRef<HTMLButtonElement>(null);
@@ -227,6 +230,7 @@ export function Marketplace({ cars, hasMore, error, page, filters }: Props) {
           <a href="#how-it-works">How it works</a>
         </nav>
         <div className="header-actions">
+          <Link className="text-button" href="/favorites">My favorites</Link>
           {account ? <AccountControl account={account} onSignedOut={() => { setAccount(null); requestAnimationFrame(() => signInButton.current?.focus()); }} /> : <button ref={signInButton} className="text-button sign-in-button" onClick={() => { resumeSelling.current = false; setAuthOpen(true); }}>Sign in</button>}
         <button
           className="button primary sell-button"

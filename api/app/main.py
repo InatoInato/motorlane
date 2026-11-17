@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import CurrentUser
 from app.auth import router as auth_router
 from app.database import Car, engine, get_session
+from app.favorites import router as favorites_router
 from app.schemas import CarInput, CarOutput, ErrorResponse
 
 
@@ -35,6 +36,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(favorites_router)
 
 Database = Annotated[AsyncSession, Depends(get_session)]
 CarId = Annotated[int, Path(gt=0, le=2_147_483_647)]

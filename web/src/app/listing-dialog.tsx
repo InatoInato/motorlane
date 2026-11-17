@@ -1,5 +1,6 @@
 "use client";
 
+import { FavoriteButton } from "./favorite-button";
 import Image from "next/image";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
@@ -157,6 +158,7 @@ export function ListingDialog({ car, userId, onClose, onSaved }: Props) {
         </button>
       </div>
       <h2 id="dialog-title">{title}</h2>
+      {car && <FavoriteButton carId={car.id} />}
       {mode === "view" ? (
         <>
           <div className="detail-photo">

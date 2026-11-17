@@ -109,7 +109,7 @@ plan must be revised when we reach deployment. There is no deployment in this sl
 
 Run `cd api && uv run alembic upgrade head` before starting the updated API.
 Register and sign in from the account form. Usernames use 3–80 letters, digits or
-underscores; passwords require 12–128 characters. API routes are
+underscores; passwords require 8–128 characters. API routes are
 `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, and `POST /auth/logout`.
 Send the returned token as `Authorization: Bearer <token>` for listing writes.
 Passwords use salted scrypt; database sessions store token hashes and expire in

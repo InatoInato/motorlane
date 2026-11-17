@@ -75,10 +75,10 @@ export function AuthDialog({ onClose, onSignedIn }: {
         {register && <p id="username-requirements" className="auth-hint">3–80 letters, numbers or underscores.</p>}
         <label htmlFor="auth-password">Password</label>
         <div className="password-field">
-          <input id="auth-password" name="password" type={visible ? "text" : "password"} required minLength={12} maxLength={128} autoComplete={register ? "new-password" : "current-password"} aria-describedby={register ? "password-requirements" : undefined} />
+          <input id="auth-password" name="password" type={visible ? "text" : "password"} required minLength={8} maxLength={128} autoComplete={register ? "new-password" : "current-password"} aria-describedby={register ? "password-requirements" : undefined} />
           <button type="button" className="text-button" aria-controls="auth-password" aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? "Hide password" : "Show password"}</button>
         </div>
-        {register && <p id="password-requirements" className="auth-hint">12–128 characters.</p>}
+        {register && <p id="password-requirements" className="auth-hint">8–128 characters.</p>}
       </fieldset>
       {notice && <p role="status" className="auth-hint">{notice}</p>}
       {error && <p role="alert" className="auth-error">{error}</p>}
