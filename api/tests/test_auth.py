@@ -31,3 +31,37 @@ async def test_password_minimum_length(client):
     credentials["password"] = "12345678"
     assert (await client.post("/auth/register", json=credentials)).status_code == 201
     assert (await client.post("/auth/login", json=credentials)).status_code == 200
+
+
+import pytest
+from httpx import AsyncClient
+
+
+@pytest.mark.parametrize("endpoint", ["login", "register"])
+@pytest.mark.parametrize(
+    ("username", "password", "location"),
+    [
+        ("valid_user", "fake123", ["body", "password"]),
+        ("invalid username", "synthetic-password-123", ["body", "username"]),
+        (None, "synthetic-password-123", ["body"]),
+    ],
+    ids=["short-password", "invalid-username", "invalid-body-shape"],
+)
+async def test_auth_validation_does_not_echo_password(
+    client: AsyncClient,
+    endpoint: str,
+    username: str | None,
+    password: str,
+    location: list[str],
+) -> None:
+    credentials = {"username": username, "password": password}
+    body = [credentials] if username is None else credentials
+    response = await client.post(f"/auth/{endpoint}", json=body)
+
+    assert response.status_code == 422
+    if password in response.text:
+        pytest.fail(
+            "Auth validation response echoed the submitted password", pytrace=False
+        )
+    detail = response.json()["detail"]
+    assert any(error["loc"] == location and error["msg"] for error in detail)

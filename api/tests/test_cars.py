@@ -26,7 +26,12 @@ async def test_crud(client: AsyncClient) -> None:
     created = await client.post("/cars", json=CAR)
     assert created.status_code == 201
     car = created.json()
-    assert car == {**CAR, "id": car["id"], "owner_id": car["owner_id"]}
+    assert car == {
+        **CAR,
+        "id": car["id"],
+        "owner_id": car["owner_id"],
+        "photo_url": None,
+    }
     location = created.headers["location"]
     assert (await client.get(location)).json() == car
     assert (await client.get("/cars")).json() == [car]
@@ -38,6 +43,7 @@ async def test_crud(client: AsyncClient) -> None:
         **replacement,
         "id": car["id"],
         "owner_id": car["owner_id"],
+        "photo_url": None,
     }
     assert (await client.get(location)).json() == updated.json()
 

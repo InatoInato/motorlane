@@ -22,6 +22,7 @@ class CarOutput(CarInput):
 
     id: int
     owner_id: int | None = None
+    photo_url: str | None = None
 
 
 class ErrorResponse(BaseModel):

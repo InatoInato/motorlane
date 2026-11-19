@@ -31,6 +31,7 @@ class Car(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    photo_key: Mapped[str | None] = mapped_column(String(255))
     make: Mapped[str] = mapped_column(String(80))
     model: Mapped[str] = mapped_column(String(80))
     year: Mapped[int]

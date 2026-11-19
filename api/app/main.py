@@ -7,9 +7,13 @@ from fastapi import Depends, FastAPI, HTTPException, Path, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
+from app import photo_storage
 from app.auth import CurrentUser
 from app.auth import router as auth_router
+from app.car_photos import listing_output, listings_output, owned_car
+from app.car_photos import router as photos_router
 from app.database import Car, engine, get_session
 from app.favorites import router as favorites_router
 from app.schemas import CarInput, CarOutput, ErrorResponse
@@ -37,6 +41,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(favorites_router)
+app.include_router(photos_router)
 
 Database = Annotated[AsyncSession, Depends(get_session)]
 CarId = Annotated[int, Path(gt=0, le=2_147_483_647)]
@@ -71,23 +76,23 @@ async def list_cars(
     session: Database,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
-) -> list[Car]:
+) -> list[CarOutput]:
     # Stable ordering makes offset pagination predictable.
     cars = await session.scalars(
         select(Car).order_by(Car.id).limit(limit).offset(offset)
     )
-    return list(cars)
+    return await listings_output(list(cars))
 
 
 @app.get("/cars/{car_id}", response_model=CarOutput, responses=NOT_FOUND)
-async def get_car(car_id: CarId, session: Database) -> Car:
-    return await find_car(car_id, session)
+async def get_car(car_id: CarId, session: Database) -> CarOutput:
+    return await listing_output(await find_car(car_id, session))
 
 
 @app.put("/cars/{car_id}", response_model=CarOutput, responses=NOT_FOUND)
 async def replace_car(
     car_id: CarId, data: CarInput, session: Database, user: CurrentUser
-) -> Car:
+) -> CarOutput:
     car = await find_car(car_id, session)
     if car.owner_id != user.id:
         raise HTTPException(403, "Only the seller can change this listing")
@@ -95,14 +100,15 @@ async def replace_car(
     for field, value in data.model_dump().items():
         setattr(car, field, value)
     await session.commit()
-    return car
+    return await listing_output(car)
 
 
 @app.delete("/cars/{car_id}", status_code=204, responses=NOT_FOUND)
 async def delete_car(car_id: CarId, session: Database, user: CurrentUser) -> Response:
-    car = await find_car(car_id, session)
-    if car.owner_id != user.id:
-        raise HTTPException(403, "Only the seller can change this listing")
+    car = await owned_car(car_id, user.id, session, lock=True)
+    key = car.photo_key
     await session.delete(car)
     await session.commit()
+    if key:
+        await run_in_threadpool(photo_storage.delete_photo, key)
     return Response(status_code=204)

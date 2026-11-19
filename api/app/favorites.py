@@ -5,6 +5,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.auth import CurrentUser, Database
+from app.car_photos import listings_output
 from app.database import Car, Favorite
 from app.schemas import CarOutput
 
@@ -51,7 +52,7 @@ async def list_favorites(
     session: Database,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
-) -> list[Car]:
+) -> list[CarOutput]:
     cars = await session.scalars(
         select(Car)
         .join(Favorite, Favorite.car_id == Car.id)
@@ -60,4 +61,4 @@ async def list_favorites(
         .limit(limit)
         .offset(offset)
     )
-    return list(cars)
+    return await listings_output(list(cars))

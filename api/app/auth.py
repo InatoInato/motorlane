@@ -2,9 +2,13 @@ import hashlib
 import hmac
 import secrets
 import time
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -14,7 +18,26 @@ from starlette.concurrency import run_in_threadpool
 
 from app.database import LoginSession, User, get_session
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+
+class AuthRoute(APIRoute):
+    def get_route_handler(self) -> Callable[[Request], Awaitable[Response]]:
+        handler = super().get_route_handler()
+
+        async def redact_validation_errors(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except RequestValidationError as exc:
+                # Even a body-level error can carry the entire credentials payload.
+                detail = [
+                    {"loc": error["loc"], "msg": error["msg"], "type": error["type"]}
+                    for error in exc.errors()
+                ]
+                return JSONResponse(status_code=422, content={"detail": detail})
+
+        return redact_validation_errors
+
+
+router = APIRouter(prefix="/auth", tags=["auth"], route_class=AuthRoute)
 Database = Annotated[AsyncSession, Depends(get_session)]
 bearer = HTTPBearer(auto_error=False)
 
