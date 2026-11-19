@@ -19,10 +19,7 @@ In terminal 1:
 
 ```bash
 cd api
-docker compose up -d --wait db
-uv sync --locked
-uv run alembic upgrade head
-uv run uvicorn app.main:app --reload --port 8000
+docker compose up --build -d --wait api
 ```
 
 In terminal 2:
@@ -33,12 +30,12 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. The page should report that the API is connected.
+Open http://localhost:3000 to browse listings from the local API.
 API docs: http://localhost:8000/docs. Health: http://localhost:8000/health.
 `/health` confirms this API process responds; it does not test any database.
 
-Defaults work without env files. For a different origin, copy api/.env.example
-to api/.env and run `uv run --env-file .env uvicorn app.main:app --reload`.
+Compose works without an env file. For host Python or custom photo storage,
+see the [API setup instructions](api/README.md).
 For a different API URL, copy web/.env.local.example to web/.env.local and restart
 Next.js. NEXT_PUBLIC_API_URL is public and compiled into the frontend bundle.
 
@@ -48,7 +45,7 @@ Next.js. NEXT_PUBLIC_API_URL is public and compiled into the frontend bundle.
 cd api
 uv run ruff check .
 uv run ruff format --check .
-docker compose --profile test up -d --wait db-test
+docker compose --profile test up -d --wait db-test moto-test
 uv run pytest -q
 ```
 

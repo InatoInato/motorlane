@@ -1,34 +1,31 @@
 "use client";
 
-import { FavoriteButton } from "./favorite-button";
 import Image from "next/image";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import {
-  carRequest,
-  isCar,
-  money,
-  photoFor,
-  type Car,
-  type CarInput,
-} from "./cars";
+import { carRequest, isCar, type Car, type CarInput } from "./cars";
+import { VehicleCover } from "./vehicle-cover";
+
+const photoTypes = "image/jpeg,image/png,image/webp";
 
 type Props = {
   car?: Car;
-  userId: number | null;
   onClose: () => void;
   onSaved: (message: string) => void;
+  onChanged: () => void;
 };
 
-export function ListingDialog({ car, userId, onClose, onSaved }: Props) {
+export function ListingDialog({ car, onClose, onSaved, onChanged }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [mode, setMode] = useState<"view" | "edit" | "create">(
-    car ? "view" : "create",
-  );
-  const [details, setDetails] = useState(car);
-  const [loading, setLoading] = useState(Boolean(car));
-  const [saving, setSaving] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const requestActive = useRef(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const [persisted, setPersisted] = useState<Car | null>(null);
+  const [phase, setPhase] = useState<"idle" | "saving" | "uploading">("idle");
   const [error, setError] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const busy = phase !== "idle";
 
   useEffect(() => {
     const previous = document.activeElement;
@@ -39,331 +36,352 @@ export function ListingDialog({ car, userId, onClose, onSaved }: Props) {
     return () => {
       modal?.close();
       document.body.style.overflow = overflow;
-      if (previous instanceof HTMLElement) previous.focus();
+      if (previous instanceof HTMLElement && previous.isConnected)
+        previous.focus();
     };
   }, []);
 
-  useEffect(() => {
-    if (!car) return;
-    let active = true;
-    // Read the individual endpoint so the detail view uses current car data.
-    carRequest(`/cars/${car.id}`)
-      .then((body) => {
-        if (!isCar(body))
-          throw new Error(
-            "This listing couldn't be read. Please refresh the listings.",
-          );
-        if (active) setDetails(body);
-      })
-      .catch((cause: Error) => {
-        if (active) setError(cause.message);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview);
+    },
+    [preview],
+  );
+
+  function choose(nextFile?: File) {
+    if (!nextFile || requestActive.current) return;
+    if (
+      !photoTypes.split(",").includes(nextFile.type) ||
+      nextFile.size === 0 ||
+      nextFile.size > 5 * 1024 * 1024
+    ) {
+      setFile(null);
+      setPreview("");
+      setPhotoError("Choose a JPEG, PNG or WebP image no larger than 5 MB.");
+      return;
+    }
+    setPhotoError("");
+    setPreview(URL.createObjectURL(nextFile));
+    setFile(nextFile);
+  }
+
+  async function upload(listing: Car, cover: File) {
+    setPhase("uploading");
+    setPhotoError("");
+    const data = new FormData();
+    data.set("photo", cover);
+    try {
+      const body = await carRequest("/cars/" + listing.id + "/photo", {
+        method: "PUT",
+        body: data,
       });
-    return () => {
-      active = false;
-    };
-  }, [car]);
+      if (!isCar(body) || !body.photo_url)
+        throw new Error("We couldn't confirm the cover upload. Try again.");
+      onSaved(
+        car
+          ? "Listing updated and cover photo saved."
+          : "Listing published with its cover photo.",
+      );
+    } catch (cause) {
+      setPhotoError(
+        cause instanceof Error
+          ? cause.message
+          : "Couldn't upload the cover. Try again.",
+      );
+      onChanged();
+    }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving) return;
-    const form = new FormData(event.currentTarget);
-    const payload: CarInput = {
-      make: String(form.get("make")).trim(),
-      model: String(form.get("model")).trim(),
-      year: Number(form.get("year")),
-      price: Number(form.get("price")),
-      milage: Number(form.get("milage")),
-    };
-    setSaving(true);
+    if (requestActive.current) return;
+    requestActive.current = true;
     setError("");
     try {
-      const body = await carRequest(
-        mode === "edit" && details ? `/cars/${details.id}` : "/cars",
-        {
-          method: mode === "edit" ? "PUT" : "POST",
-          body: JSON.stringify(payload),
-        },
-      );
+      // A confirmed listing write supplies the ID for every photo retry.
+      if (persisted) {
+        if (file) await upload(persisted, file);
+        return;
+      }
+      setPhase("saving");
+      const form = new FormData(event.currentTarget);
+      const payload: CarInput = {
+        make: String(form.get("make")).trim(),
+        model: String(form.get("model")).trim(),
+        year: Number(form.get("year")),
+        price: Number(form.get("price")),
+        milage: Number(form.get("milage")),
+      };
+      const body = await carRequest(car ? "/cars/" + car.id : "/cars", {
+        method: car ? "PUT" : "POST",
+        body: JSON.stringify(payload),
+      });
       if (!isCar(body))
         throw new Error(
           "We couldn't confirm the saved listing. Refresh before trying again.",
         );
-      onSaved(
-        mode === "edit"
-          ? "Listing updated. Looking good."
-          : "Your car is listed. Let the next chapter begin.",
-      );
+      if (file) {
+        setPersisted(body);
+        await upload(body, file);
+      } else {
+        onSaved(car ? "Listing updated." : "Listing published.");
+      }
     } catch (cause) {
       setError(
         cause instanceof Error
           ? cause.message
           : "Your listing couldn't be saved.",
       );
-      setSaving(false);
+    } finally {
+      requestActive.current = false;
+      setPhase("idle");
     }
   }
 
-  async function remove() {
-    if (!details || saving) return;
-    setSaving(true);
-    setError("");
-    try {
-      await carRequest(`/cars/${details.id}`, { method: "DELETE" });
-      onSaved("Listing deleted.");
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Your listing couldn't be deleted.",
-      );
-      setSaving(false);
-    }
-  }
-
-  const title =
-    mode === "create"
-      ? "Make room for what's next."
-      : mode === "edit"
-        ? "A few finishing touches."
-        : `${details?.make} ${details?.model}`;
-  const photo = details ? photoFor(details.make) : null;
+  const current = persisted ?? car;
   return (
     <dialog
       ref={dialog}
-      className="listing-dialog"
+      className="listing-dialog seller-dialog"
       aria-labelledby="dialog-title"
       onCancel={(event) => {
         event.preventDefault();
-        if (!saving) onClose();
+        if (!requestActive.current) onClose();
       }}
     >
       <div className="dialog-topline">
-        <span className="eyebrow">
-          {mode === "create"
-            ? "SELL YOUR CAR"
-            : mode === "edit"
-              ? "EDIT LISTING"
-              : "TAKE A CLOSER LOOK"}
-        </span>
+        <span className="eyebrow">Seller tools</span>
         <button
+          type="button"
           className="icon-button"
           onClick={onClose}
-          disabled={saving}
+          disabled={busy}
           aria-label="Close dialog"
         >
           ×
         </button>
       </div>
-      <h2 id="dialog-title">{title}</h2>
-      {car && <FavoriteButton carId={car.id} />}
-      {mode === "view" ? (
-        <>
-          <div className="detail-photo">
-            {photo ? (
-              <Image
-                src={photo}
-                alt={`Illustrative ${details?.make} photograph, not the listed car`}
-                fill
-                sizes="600px"
+      <h2 id="dialog-title">{car ? "Edit listing" : "List your car"}</h2>
+      <p className="dialog-intro">
+        {car
+          ? "Update your vehicle details or replace its cover."
+          : "Add your vehicle details and a cover photo to publish on Motorlane."}
+      </p>
+      <form onSubmit={save} className="car-form" aria-busy={busy}>
+        <fieldset
+          className="vehicle-fields"
+          disabled={busy || Boolean(persisted)}
+        >
+          <legend>Vehicle details</legend>
+          <div className="form-pair">
+            <label>
+              Make
+              <input
+                name="make"
+                placeholder="e.g. BMW"
+                maxLength={80}
+                required
+                pattern=".*\S.*"
+                defaultValue={car?.make}
               />
-            ) : (
-              <div className="no-photo">
-                <span className="car-outline" aria-hidden="true">
-                  ↗
-                </span>
-                <span>No vehicle photo yet</span>
-              </div>
-            )}
-            {photo && <span className="photo-label">Illustrative photo</span>}
+            </label>
+            <label>
+              Model
+              <input
+                name="model"
+                placeholder="e.g. 330i"
+                maxLength={80}
+                required
+                pattern=".*\S.*"
+                defaultValue={car?.model}
+              />
+            </label>
           </div>
-          {loading ? (
-            <p className="dialog-status" role="status">
-              Getting the latest details…
-            </p>
-          ) : (
-            <>
-              <div className="detail-price">
-                {money(details?.price ?? 0)} <span>USD</span>
+          <div className="form-pair specs-fields">
+            <label>
+              Year
+              <input
+                name="year"
+                type="number"
+                min={1886}
+                max={2100}
+                step={1}
+                placeholder="2021"
+                required
+                defaultValue={car?.year}
+              />
+            </label>
+            <label>
+              Price (USD)
+              <input
+                name="price"
+                type="number"
+                min={0}
+                max={2147483647}
+                step={1}
+                placeholder="28000"
+                required
+                defaultValue={car?.price}
+              />
+            </label>
+            <label>
+              Mileage (km)
+              <input
+                name="milage"
+                type="number"
+                min={0}
+                max={2147483647}
+                step={1}
+                placeholder="45000"
+                required
+                defaultValue={car?.milage}
+              />
+            </label>
+          </div>
+        </fieldset>
+        <fieldset disabled={busy} className="photo-fields">
+          <legend>
+            Cover photo <span>Optional</span>
+          </legend>
+          <div
+            className="picker-layout"
+            data-has-current={Boolean(current?.photo_url)}
+          >
+            {current?.photo_url && (
+              <div className="picker-current">
+                <div className="picker-image">
+                  <VehicleCover car={current} sizes="240px" />
+                </div>
+                <p>Current cover</p>
               </div>
-              <dl className="detail-specs">
-                <div>
-                  <dt>Year</dt>
-                  <dd>{details?.year}</dd>
-                </div>
-                <div>
-                  <dt>Mileage</dt>
-                  <dd>{details?.milage.toLocaleString("en-US")} km</dd>
-                </div>
-                <div>
-                  <dt>Listing</dt>
-                  <dd>#{details?.id}</dd>
-                </div>
-              </dl>
-              <p className="fine-print">
-                Vehicle photos and seller contact details aren’t available yet.
-                This local marketplace lets you manage listings.
-              </p>
-              {!error && !confirmDelete && userId !== null && details?.owner_id === userId && (
-                <div className="dialog-actions">
-                  <button
-                    className="button primary"
-                    onClick={() => setMode("edit")}
-                  >
-                    Edit listing <span aria-hidden="true">↗</span>
-                  </button>
-                  <button
-                    className="text-button danger"
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    Delete listing
-                  </button>
-                </div>
-              )}
-              {confirmDelete && (
-                <div className="delete-confirm">
-                  <h3>Delete this listing?</h3>
-                  <p>This permanently removes the car from the marketplace.</p>
-                  <div className="dialog-actions">
-                    <button
-                      className="button destructive"
-                      onClick={remove}
-                      disabled={saving}
-                    >
-                      {saving ? "Deleting…" : "Yes, delete listing"}
-                    </button>
-                    <button
-                      className="button secondary"
-                      onClick={() => setConfirmDelete(false)}
-                      disabled={saving}
-                    >
-                      Keep listing
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          <p className="dialog-intro">
-            {mode === "create"
-              ? "Start with the essentials. A great drive deserves its next driver."
-              : "Keep your car's details up to date. All fields are required."}
-          </p>
-          <form onSubmit={save} className="car-form">
-            <fieldset disabled={saving}>
-              <div className="form-pair">
-                <label>
-                  Make
-                  <input
-                    name="make"
-                    placeholder="e.g. BMW"
-                    maxLength={80}
-                    required
-                    pattern=".*\S.*"
-                    defaultValue={mode === "edit" ? details?.make : ""}
-                  />
-                </label>
-                <label>
-                  Model
-                  <input
-                    name="model"
-                    placeholder="e.g. 320i"
-                    maxLength={80}
-                    required
-                    pattern=".*\S.*"
-                    defaultValue={mode === "edit" ? details?.model : ""}
-                  />
-                </label>
-              </div>
-              <label>
-                Year
-                <input
-                  name="year"
-                  type="number"
-                  min={1886}
-                  max={2100}
-                  step={1}
-                  placeholder="e.g. 2021"
-                  required
-                  defaultValue={mode === "edit" ? details?.year : ""}
-                />
-              </label>
-              <div className="form-pair">
-                <label>
-                  Price <span>(USD)</span>
-                  <input
-                    name="price"
-                    type="number"
-                    min={0}
-                    max={2147483647}
-                    step={1}
-                    placeholder="e.g. 28000"
-                    required
-                    defaultValue={mode === "edit" ? details?.price : ""}
-                  />
-                </label>
-                <label>
-                  Mileage <span>(km)</span>
-                  <input
-                    name="milage"
-                    type="number"
-                    min={0}
-                    max={2147483647}
-                    step={1}
-                    placeholder="e.g. 45000"
-                    required
-                    defaultValue={mode === "edit" ? details?.milage : ""}
-                  />
-                </label>
-              </div>
-            </fieldset>
-            <p className="fine-print">
-              All fields required. Prices use whole US dollars. Listings can be
-              edited or removed by anyone in this local preview.
-            </p>
-            {error && (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
             )}
-            <div className="dialog-actions">
-              <button
-                className="button primary"
-                type="submit"
-                disabled={saving}
-              >
-                {saving
-                  ? "Saving…"
-                  : mode === "edit"
+            <div
+              className="photo-picker"
+              data-dragging={dragging}
+              onDragOver={(event) => {
+                if (!event.dataTransfer.types.includes("Files")) return;
+                event.preventDefault();
+                if (!busy) setDragging(true);
+              }}
+              onDragLeave={(event) => {
+                if (
+                  !(event.relatedTarget instanceof Node) ||
+                  !event.currentTarget.contains(event.relatedTarget)
+                )
+                  setDragging(false);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragging(false);
+                choose(event.dataTransfer.files[0]);
+              }}
+            >
+              {file && preview && (
+                <div className="picker-image">
+                  <Image
+                    src={preview}
+                    alt="Selected cover preview"
+                    unoptimized
+                    fill
+                    sizes="360px"
+                  />
+                </div>
+              )}
+              <div className="picker-controls">
+                {file ? (
+                  <p className="file-name">{file.name}</p>
+                ) : (
+                  <p className="drop-label">Drag and drop a photo</p>
+                )}
+                <input
+                  ref={fileInput}
+                  id="cover-photo"
+                  name="photo"
+                  type="file"
+                  accept={photoTypes}
+                  aria-label="Cover photo"
+                  aria-describedby="cover-formats"
+                  hidden
+                  onChange={(event) => {
+                    choose(event.currentTarget.files?.[0]);
+                    event.currentTarget.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => fileInput.current?.click()}
+                  aria-describedby="cover-formats"
+                >
+                  {file ? "Choose another photo" : "Choose photo"}
+                </button>
+                {(file || photoError) && !persisted && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => {
+                      setFile(null);
+                      setPreview("");
+                      setPhotoError("");
+                    }}
+                  >
+                    Remove selection
+                  </button>
+                )}
+                <p id="cover-formats" className="auth-hint">
+                  JPEG, PNG or WebP · 5 MB max
+                </p>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+        {persisted && (
+          <p className="dialog-status" role="status">
+            {phase === "uploading"
+              ? "Listing saved. Uploading cover…"
+              : "Listing saved. You can retry the cover upload here."}
+          </p>
+        )}
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        {photoError && (
+          <p className="form-error" role="alert">
+            {photoError}
+          </p>
+        )}
+        <div className="dialog-actions">
+          <button
+            className="button secondary"
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+          >
+            {persisted ? "Done" : "Cancel"}
+          </button>
+          <button
+            className="button primary"
+            type="submit"
+            disabled={
+              busy ||
+              Boolean(persisted && !file) ||
+              Boolean(photoError && !file)
+            }
+          >
+            {phase === "uploading"
+              ? "Uploading…"
+              : phase === "saving"
+                ? "Saving…"
+                : persisted
+                  ? "Retry photo upload"
+                  : car
                     ? "Save changes"
                     : "Publish listing"}
-                <span aria-hidden="true">↗</span>
-              </button>
-              <button
-                className="button secondary"
-                type="button"
-                onClick={onClose}
-                disabled={saving}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </>
-      )}
-      {mode === "view" && error && (
-        <div className="form-error" role="alert">
-          <p>{error}</p>
-          <button className="text-button" onClick={onClose}>
-            Back to listings
           </button>
         </div>
-      )}
+      </form>
     </dialog>
   );
 }

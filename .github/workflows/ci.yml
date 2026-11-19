@@ -44,6 +44,8 @@ jobs:
         run: uv run --no-sync ruff check .
       - name: Ruff format
         run: uv run --no-sync ruff format --check .
+      - name: Start Moto for photo tests
+        run: docker compose --profile test up -d --wait moto-test
       # The pytest session fixture applies migrations to the test database.
       - name: PostgreSQL tests
         run: uv run --no-sync pytest -q

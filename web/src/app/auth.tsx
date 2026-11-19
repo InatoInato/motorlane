@@ -63,11 +63,11 @@ export function AuthDialog({ onClose, onSignedIn }: {
   return <dialog ref={dialog} className="listing-dialog auth-dialog" aria-labelledby="auth-title"
     onCancel={(event) => { event.preventDefault(); onClose(); }}>
     <div className="dialog-topline">
-      <span className="eyebrow">YOUR MOTORLANE ACCOUNT</span>
+      <span className="eyebrow">MOTORLANE ACCOUNT</span>
       <button className="icon-button" type="button" onClick={onClose} aria-label="Close authentication">×</button>
     </div>
     <h2 id="auth-title">{register ? "Create account" : "Sign in"}</h2>
-    <p className="dialog-intro">{register ? "Create an account to list and manage your cars." : "Welcome back. Sign in to manage your listings."}</p>
+    <p className="dialog-intro">{register ? "Create an account to save cars and manage your listings." : "Sign in to save cars and manage your listings."}</p>
     <form className="auth-form" onSubmit={submit} aria-busy={busy}>
       <fieldset disabled={busy}>
         <label htmlFor="auth-username">Username</label>

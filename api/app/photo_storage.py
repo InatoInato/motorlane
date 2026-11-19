@@ -19,7 +19,7 @@ def image_content_type(data: bytes) -> str:
     """Check the actual image and decode it before publishing the original bytes."""
     try:
         with Image.open(BytesIO(data), formats=list(FORMATS)) as image:
-            content_type = FORMATS[image.format]
+            content_type = FORMATS[image.format]  # type: ignore
             if image.width * image.height > MAX_DECODED_PIXELS:
                 raise ValueError
             image.verify()
@@ -43,7 +43,7 @@ def bucket() -> str:
 
 @lru_cache
 def s3_client(endpoint: str | None):
-    return boto3.session.Session().client(
+    return boto3.session.Session().client(  # type: ignore
         "s3",
         endpoint_url=endpoint,
         config=Config(
