@@ -16,9 +16,15 @@ const input: CarInput = {
   milage: 38000,
 };
 let prefix: string;
+let token: string;
+let username: string;
 
 test.beforeEach(async ({ request }) => {
   prefix = `web-test-${randomUUID().slice(0, 8)}`;
+  username = `seller_${randomUUID().slice(0, 8)}`;
+  const data = { username, password: "test-password-123" };
+  await request.post(`${API}/auth/register`, { data });
+  token = (await (await request.post(`${API}/auth/login`, { data })).json()).token;
   const response = await request.get(`${API}/cars?limit=1`);
   expect(response.ok()).toBe(true);
   expect(
@@ -33,7 +39,7 @@ test.afterEach(async ({ request }) => {
   const cars: Car[] = await response.json();
   // Remove only this test's records, even when an assertion failed halfway through.
   for (const car of cars.filter((car) => car.model.startsWith(prefix))) {
-    const deleted = await request.delete(`${API}/cars/${car.id}`);
+    const deleted = await request.delete(`${API}/cars/${car.id}`, { headers: { Authorization: `Bearer ${token}` } });
     expect(deleted.status()).toBe(204);
   }
 });
@@ -43,6 +49,7 @@ async function createCar(
   changes: Partial<CarInput> = {},
 ) {
   const response = await request.post(`${API}/cars`, {
+    headers: { Authorization: `Bearer ${token}` },
     data: {
       ...input,
       ...changes,
@@ -73,6 +80,11 @@ test("creates, reads, edits and deletes a car through the browser", async ({
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Username", { exact: true }).fill(username);
+  await page.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await page.getByRole("dialog").getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByLabel(`Account: ${username}`, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Sell your car" }).first().click();
   const car = { ...input, model: `${prefix} Touring` };
   await fillListing(page, car);
@@ -134,6 +146,11 @@ test("validates required fields, retains failed input and prevents duplicate sub
   page,
 }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Username", { exact: true }).fill(username);
+  await page.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await page.getByRole("dialog").getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByLabel(`Account: ${username}`, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Sell your car" }).first().click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Publish listing" }).click();
@@ -192,6 +209,11 @@ test("preserves search, brand and budget filters in the URL and sorts results", 
   const bmw = await createCar(request, { model: "Touring", price: 20000 });
   await createCar(request, { make: "Audi", model: "Avant", price: 40000 });
   await page.goto("/");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Username", { exact: true }).fill(username);
+  await page.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await page.getByRole("dialog").getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByLabel(`Account: ${username}`, { exact: true })).toBeVisible();
   await page
     .getByRole("textbox", { name: "Search make or model" })
     .fill("Touring");
@@ -248,6 +270,11 @@ test("paginates real inventory without inventing a total count", async ({
 }) => {
   for (let i = 0; i < 13; i++) await createCar(request, { model: `Car ${i}` });
   await page.goto("/");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Username", { exact: true }).fill(username);
+  await page.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await page.getByRole("dialog").getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByLabel(`Account: ${username}`, { exact: true })).toBeVisible();
   await expect(page.locator("#listings .car-card")).toHaveCount(12);
   await page.getByRole("link", { name: "Next page →" }).click();
   await expect(page).toHaveURL(/page=2/);
@@ -264,7 +291,12 @@ test("handles a listing removed by another caller", async ({
 }) => {
   const car = await createCar(request);
   await page.goto("/");
-  expect((await request.delete(`${API}/cars/${car.id}`)).status()).toBe(204);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Username", { exact: true }).fill(username);
+  await page.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await page.getByRole("dialog").getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByLabel(`Account: ${username}`, { exact: true })).toBeVisible();
+  expect((await request.delete(`${API}/cars/${car.id}`, { headers: { Authorization: `Bearer ${token}` } })).status()).toBe(204);
   await page.getByRole("button", { name: `View BMW ${car.model}` }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("alert")).toContainText("no longer available");
@@ -279,6 +311,11 @@ test("labels samples honestly, restores keyboard focus and fits the viewport", a
   page,
 }, testInfo) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Username", { exact: true }).fill(username);
+  await page.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await page.getByRole("dialog").getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByLabel(`Account: ${username}`, { exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Every great drive starts somewhere." }),
   ).toBeVisible();
@@ -314,4 +351,148 @@ test("labels samples honestly, restores keyboard focus and fits the viewport", a
     path: testInfo.outputPath("homepage.png"),
     fullPage: true,
   });
+});
+
+test("registers in a modal, reports errors and signs out", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await expect(page.getByLabel("Username", { exact: true })).toHaveCount(0);
+  const signIn = page.getByRole("button", { name: "Sign in", exact: true });
+  await signIn.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveAccessibleName("Sign in");
+  await expect(dialog.getByText("8–128 characters.", { exact: true })).toHaveCount(0);
+  await dialog.getByLabel("Username", { exact: true }).fill(username);
+  await dialog.getByLabel("Password", { exact: true }).fill("wrong-password-123");
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("valid username and password");
+  await expect(dialog.getByLabel("Username", { exact: true })).toHaveValue(username);
+  await dialog.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(dialog).toHaveAccessibleName("Create account");
+  await expect(dialog.getByText("8–128 characters.", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("Password", { exact: true })).toHaveAttribute("autocomplete", "new-password");
+  await dialog.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await dialog.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("already taken");
+  const password = dialog.getByLabel("Password", { exact: true });
+  await password.fill("1234567");
+  expect(await password.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+  await password.fill("12345678");
+  expect(await password.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
+  const newUser = `new_${randomUUID().slice(0, 8)}`;
+  await dialog.getByLabel("Username", { exact: true }).fill(newUser);
+  await dialog.getByRole("button", { name: "Show password" }).click();
+  await expect(dialog.getByLabel("Password", { exact: true })).toHaveAttribute("type", "text");
+  await dialog.getByRole("button", { name: "Hide password" }).click();
+  await expect(dialog.getByLabel("Password", { exact: true })).toHaveAttribute("type", "password");
+  await page.screenshot({ path: testInfo.outputPath("registration.png") });
+  await dialog.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const account = page.getByLabel(`Account: ${newUser}`, { exact: true });
+  await expect(account).toBeFocused();
+  await account.click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(signIn).toBeFocused();
+});
+
+test("contains focus, closes on Escape and resumes selling", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const sell = page.getByRole("button", { name: "Sell your car" }).first();
+  await sell.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveAccessibleName("Sign in");
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.activeElement === document.body || Boolean(document.activeElement?.closest("dialog")))).toBe(true);
+  }
+  await page.keyboard.press("Shift+Tab");
+  expect(await page.evaluate(() => Boolean(document.activeElement?.closest("dialog")))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(sell).toBeFocused();
+  await sell.click();
+  await dialog.getByLabel("Username", { exact: true }).fill(username);
+  await dialog.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await expect(dialog.getByLabel("Password", { exact: true })).toHaveAttribute("autocomplete", "current-password");
+  expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("sign-in.png") });
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(dialog).toHaveAccessibleName("Make room for what's next.");
+  await expect(dialog.getByLabel("Make", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sell).toBeFocused();
+});
+
+test("preserves auth input on network and server errors and prevents duplicate submissions", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Username", { exact: true }).fill(username);
+  await dialog.getByLabel("Password", { exact: true }).fill("test-password-123");
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let submissions = 0;
+  await page.route(`${API}/auth/login`, async route => {
+    submissions++;
+    await held;
+    await route.fulfill({ status: 500, json: { detail: "Failure" } });
+  });
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "Please wait…" })).toBeDisabled();
+  await expect(dialog.getByLabel("Username", { exact: true })).toBeDisabled();
+  release();
+  await expect(dialog.getByRole("alert")).toContainText("account request");
+  expect(submissions).toBe(1);
+  await expect(dialog.getByLabel("Username", { exact: true })).toHaveValue(username);
+  await page.unroute(`${API}/auth/login`);
+  await page.route(`${API}/auth/login`, route => route.abort());
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("reach your account");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+});
+
+test("favorites prompt sign-in, sync cards and details, and support a private favorites page", async ({ page, request }, testInfo) => {
+  const car = await createCar(request);
+  await page.goto("/");
+  const card = page.locator("#listings .car-card");
+  await card.getByRole("button", { name: "Save to favorites", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveAccessibleName("Sign in");
+  await dialog.getByLabel("Username", { exact: true }).fill(username);
+  await dialog.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(card.getByRole("button", { name: "Remove from favorites" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: `View BMW ${car.model}` }).click();
+  await dialog.getByRole("button", { name: "Remove from favorites" }).click();
+  await expect(dialog.getByRole("button", { name: "Save to favorites" })).toHaveAttribute("aria-pressed", "false");
+  await dialog.getByRole("button", { name: "Save to favorites" }).click();
+  await expect(dialog.getByRole("button", { name: "Remove from favorites" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  let releaseFavorites!: () => void;
+  const heldFavorites = new Promise<void>(resolve => { releaseFavorites = resolve; });
+  await page.route(`${API}/favorites?*`, async route => {
+    await heldFavorites;
+    await route.continue();
+  });
+  await page.getByRole("link", { name: "My favorites" }).click();
+  try {
+    await expect(page.getByRole("status")).toHaveText("Loading favorites…");
+  } finally { releaseFavorites(); }
+  await expect(page.getByRole("heading", { name: "My favorites" })).toBeVisible();
+  await expect(page.getByRole("button", { name: `BMW ${car.model}` })).toBeVisible();
+  await page.unroute(`${API}/favorites?*`);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("favorites.png"), fullPage: true });
+  await page.getByRole("button", { name: "Remove from favorites" }).click();
+  await expect(page.getByRole("heading", { name: "No favorites on this page." })).toBeVisible();
+  await page.route(`${API}/favorites?*`, route => route.fulfill({ status: 500, json: {} }));
+  await expect(page.getByRole("button", { name: "Next", exact: true })).toBeDisabled();
+  await page.getByRole("link", { name: "Browse cars", exact: true }).first().click();
+  await page.getByRole("link", { name: "My favorites" }).click();
+  await expect(page.locator("main").getByRole("alert")).toContainText("Something went wrong");
+  await page.unroute(`${API}/favorites?*`);
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("heading", { name: "No favorites on this page." })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Sign in to see your saved cars.")).toBeVisible();
 });

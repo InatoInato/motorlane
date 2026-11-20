@@ -44,7 +44,7 @@ export default defineConfig({
       name: "Test web",
       command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
       url: "http://localhost:3100",
-      env: { NEXT_PUBLIC_API_URL: "http://localhost:8001" },
+      env: { NEXT_PUBLIC_API_URL: "http://localhost:8001", NEXT_DIST_DIR: ".next-e2e" },
       reuseExistingServer: false,
       gracefulShutdown: { signal: "SIGTERM", timeout: 5000 },
     },

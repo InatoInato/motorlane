@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { SessionProvider } from "./session";
 
 export const metadata: Metadata = {
   title: "Motorlane — Your next chapter. Your next car.",
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body>{children}</body>
+      <body><SessionProvider>{children}</SessionProvider></body>
     </html>
   );
 }

@@ -1,9 +1,12 @@
 "use client";
 
+import { AccountControl, AuthDialog } from "./auth";
+import { useSession } from "./session";
+import { FavoriteButton } from "./favorite-button";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
+import { useRef, useState, useTransition, type FormEvent } from "react";
 import { money, photoFor, type Car } from "./cars";
 import { HealthStatus } from "./health-status";
 import { ListingDialog } from "./listing-dialog";
@@ -117,6 +120,7 @@ function CarCard({
               <Arrow />
             </button>
           )}
+          {!sample && <FavoriteButton carId={car.id} />}
           {sample && <span className="sample-caption">For inspiration</span>}
         </div>
       </div>
@@ -126,6 +130,10 @@ function CarCard({
 
 export function Marketplace({ cars, hasMore, error, page, filters }: Props) {
   const router = useRouter();
+  const { account, setAccount } = useSession();
+  const [authOpen, setAuthOpen] = useState(false);
+  const resumeSelling = useRef(false);
+  const signInButton = useRef<HTMLButtonElement>(null);
   const [pending, startTransition] = useTransition();
   const [dialog, setDialog] = useState<Car | "create" | null>(null);
   const [notice, setNotice] = useState("");
@@ -176,6 +184,14 @@ export function Marketplace({ cars, hasMore, error, page, filters }: Props) {
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function sell() {
+    if (account) setDialog("create");
+    else {
+      resumeSelling.current = true;
+      setAuthOpen(true);
+    }
+  }
+
   function saved(message: string) {
     setDialog(null);
     setNotice(message);
@@ -213,12 +229,16 @@ export function Marketplace({ cars, hasMore, error, page, filters }: Props) {
           </a>
           <a href="#how-it-works">How it works</a>
         </nav>
+        <div className="header-actions">
+          <Link className="text-button" href="/favorites">My favorites</Link>
+          {account ? <AccountControl account={account} onSignedOut={() => { setAccount(null); requestAnimationFrame(() => signInButton.current?.focus()); }} /> : <button ref={signInButton} className="text-button sign-in-button" onClick={() => { resumeSelling.current = false; setAuthOpen(true); }}>Sign in</button>}
         <button
           className="button primary sell-button"
-          onClick={() => setDialog("create")}
+          onClick={sell}
         >
           Sell your car <Arrow />
         </button>
+        </div>
       </header>
       <main>
         <section className="hero shell" aria-labelledby="hero-heading">
@@ -455,7 +475,7 @@ export function Marketplace({ cars, hasMore, error, page, filters }: Props) {
                           { scroll: false },
                         ),
                       )
-                    : setDialog("create")
+                    : sell()
                 }
               >
                 {filtered ? "Reset filters" : "List your car"}
@@ -541,7 +561,7 @@ export function Marketplace({ cars, hasMore, error, page, filters }: Props) {
               Ready for a change? Create your listing and keep its details up to
               date.
             </p>
-            <button className="text-button" onClick={() => setDialog("create")}>
+            <button className="text-button" onClick={sell}>
               List your car <Arrow />
             </button>
           </div>
@@ -557,7 +577,7 @@ export function Marketplace({ cars, hasMore, error, page, filters }: Props) {
           </div>
           <button
             className="button primary"
-            onClick={() => setDialog("create")}
+            onClick={sell}
           >
             Sell your car <Arrow />
           </button>
@@ -575,9 +595,17 @@ export function Marketplace({ cars, hasMore, error, page, filters }: Props) {
           <p>© {new Date().getFullYear()} Motorlane · Made for the drive.</p>
         </div>
       </footer>
+      {authOpen && <AuthDialog onClose={() => { setAuthOpen(false); resumeSelling.current = false; }} onSignedIn={(user) => {
+        setAccount(user);
+        setAuthOpen(false);
+        if (resumeSelling.current) setDialog("create");
+        else requestAnimationFrame(() => document.querySelector<HTMLElement>(".account-control summary")?.focus());
+        resumeSelling.current = false;
+      }} />}
       {dialog && (
         <ListingDialog
           key={dialog === "create" ? "create" : dialog.id}
+          userId={account?.id ?? null}
           car={dialog === "create" ? undefined : dialog}
           onClose={() => setDialog(null)}
           onSaved={saved}

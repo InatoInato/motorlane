@@ -1,3 +1,6 @@
+let authToken: string | null = null;
+export function setAuthToken(token: string | null) { authToken = token; }
+
 export type CarInput = {
   make: string;
   model: string;
@@ -6,7 +9,7 @@ export type CarInput = {
   milage: number;
 };
 
-export type Car = CarInput & { id: number };
+export type Car = CarInput & { id: number; owner_id?: number | null };
 export const PAGE_SIZE = 12;
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -32,17 +35,18 @@ export async function carRequest(
   path: string,
   options: RequestInit = {},
 ): Promise<unknown> {
+  const auth = path.startsWith("/auth/");
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...options,
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
-      headers: { "Content-Type": "application/json", ...options.headers },
+      headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}), ...options.headers },
     });
   } catch {
     throw new Error(
-      options.method && options.method !== "GET"
+      auth ? "We couldn't reach your account. Please try again." : options.method && options.method !== "GET"
         ? "We couldn't confirm your changes. Check the listings before trying again."
         : "We couldn't reach the marketplace. Please try again in a moment.",
     );
@@ -50,10 +54,15 @@ export async function carRequest(
   if (response.status === 204) return null;
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
+    if ([401, 403, 409].includes(response.status))
+      throw new Error(response.status === 401 ? "Please sign in with a valid username and password." : response.status === 403 ? "Only the seller can change this listing." : "That username is already taken.");
     if (response.status === 404)
       throw new Error(
         "This car is no longer available. Refresh the listings to continue.",
       );
+    if (auth && response.status === 422)
+      throw new Error("Check your username and password and try again.");
+    if (auth) throw new Error("We couldn't complete this account request. Please try again.");
     if (response.status === 422)
       throw new Error(
         "Some details couldn't be saved. Check the name, year, price and mileage, then try again.",

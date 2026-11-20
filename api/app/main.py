@@ -8,7 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import CurrentUser
+from app.auth import router as auth_router
 from app.database import Car, engine, get_session
+from app.favorites import router as favorites_router
 from app.schemas import CarInput, CarOutput, ErrorResponse
 
 
@@ -29,8 +32,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.getenv("WEB_ORIGIN", "http://localhost:3000")],
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+app.include_router(auth_router)
+app.include_router(favorites_router)
 
 Database = Annotated[AsyncSession, Depends(get_session)]
 CarId = Annotated[int, Path(gt=0, le=2_147_483_647)]
@@ -50,8 +56,10 @@ async def find_car(car_id: int, session: AsyncSession) -> Car:
 
 
 @app.post("/cars", response_model=CarOutput, status_code=201)
-async def create_car(data: CarInput, session: Database, response: Response) -> Car:
-    car = Car(**data.model_dump())
+async def create_car(
+    data: CarInput, session: Database, response: Response, user: CurrentUser
+) -> Car:
+    car = Car(**data.model_dump(), owner_id=user.id)
     session.add(car)
     await session.commit()
     response.headers["Location"] = f"/cars/{car.id}"
@@ -77,8 +85,12 @@ async def get_car(car_id: CarId, session: Database) -> Car:
 
 
 @app.put("/cars/{car_id}", response_model=CarOutput, responses=NOT_FOUND)
-async def replace_car(car_id: CarId, data: CarInput, session: Database) -> Car:
+async def replace_car(
+    car_id: CarId, data: CarInput, session: Database, user: CurrentUser
+) -> Car:
     car = await find_car(car_id, session)
+    if car.owner_id != user.id:
+        raise HTTPException(403, "Only the seller can change this listing")
     # PUT replaces every editable field; the generated ID stays the same.
     for field, value in data.model_dump().items():
         setattr(car, field, value)
@@ -87,8 +99,10 @@ async def replace_car(car_id: CarId, data: CarInput, session: Database) -> Car:
 
 
 @app.delete("/cars/{car_id}", status_code=204, responses=NOT_FOUND)
-async def delete_car(car_id: CarId, session: Database) -> Response:
+async def delete_car(car_id: CarId, session: Database, user: CurrentUser) -> Response:
     car = await find_car(car_id, session)
+    if car.owner_id != user.id:
+        raise HTTPException(403, "Only the seller can change this listing")
     await session.delete(car)
     await session.commit()
     return Response(status_code=204)

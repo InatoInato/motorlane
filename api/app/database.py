@@ -1,7 +1,8 @@
 import os
 from collections.abc import AsyncIterator
+from datetime import datetime
 
-from sqlalchemy import CheckConstraint, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, func
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -29,6 +30,7 @@ class Car(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     make: Mapped[str] = mapped_column(String(80))
     model: Mapped[str] = mapped_column(String(80))
     year: Mapped[int]
@@ -40,3 +42,30 @@ async def get_session() -> AsyncIterator[AsyncSession]:
     # Every request owns its session; an unfinished transaction rolls back on close.
     async with Session() as session:
         yield session
+
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(80), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+
+
+class LoginSession(Base):
+    __tablename__ = "login_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    expires: Mapped[int]
+
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    car_id: Mapped[int] = mapped_column(
+        ForeignKey("cars.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

@@ -1319,3 +1319,37 @@ h2 {
     scroll-behavior: auto !important;
   }
 }
+
+.header-actions { display: flex; align-items: center; gap: 22px; }
+.sign-in-button, .account-control summary { white-space: nowrap; font-size: 13px; }
+.account-control { position: relative; }
+.account-control summary { cursor: pointer; }
+.account-panel { position: absolute; right: 0; top: calc(100% + 16px); z-index: 5; width: 240px; padding: 20px; background: white; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0002; overflow-wrap: anywhere; }
+.account-panel p { font-size: 13px; margin-bottom: 14px; }
+.auth-dialog { width: min(420px, calc(100% - 32px)); }
+.auth-form { display: grid; gap: 20px; }
+.auth-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.auth-form label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+.auth-form input { width: 100%; min-width: 0; min-height: 48px; padding: 12px; border: 1px solid #d8dce3; border-radius: 6px; font-size: 14px; background: white; }
+.auth-form label[for="auth-password"] { margin-top: 20px; }
+.password-field { position: relative; }
+.password-field input { padding-right: 122px; }
+.password-field button { position: absolute; right: 12px; top: 0; min-height: 48px; font-size: 12px; }
+.auth-hint, .auth-switch { font-size: 12px; line-height: 1.7; color: var(--muted); }
+.auth-hint { margin-top: 6px; }
+.auth-switch { text-align: center; }
+.auth-switch button { color: var(--blue); }
+.auth-error { color: #a32b27; font-size: 13px; line-height: 1.6; }
+@media (max-width: 600px) {
+  .site-header { flex-wrap: wrap; padding-block: 16px; }
+  .header-actions { gap: 14px; margin-left: auto; }
+  .sign-in-button, .account-control summary { font-size: 12px; }
+  .auth-dialog { padding: 22px; }
+}
+.favorite-button { color: var(--blue); min-height: 44px; }
+.favorite-button span { font-size: 22px; vertical-align: middle; }
+.favorite-control { margin-top: 8px; }
+.favorites-page { padding-block: 32px; }
+.favorites-page h1 { font-size: 36px; margin-block: 28px; }
+.favorites-card { padding: 24px; display: grid; gap: 16px; }
+@media (max-width: 600px) { .header-actions { flex-wrap: wrap; justify-content: flex-end; } }
